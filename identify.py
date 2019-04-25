@@ -23,7 +23,7 @@ from sympy.concrete.summations import Sum
 from sympy.core.core import all_classes as sympy_classes
 from sympy.concrete.products import Product
 from sympy.functions import Abs
-
+from IPython.display import display, Latex
 class Fail(Exception):
     pass
 
@@ -246,7 +246,9 @@ def display_P( P ):
     elif type(P) in sympy_classes:
         return display(P)
 def ID( y, x, P, G, U ):
-    display(Latex('$P({} | {})$'.format(','.join(sorted(y)), ','.join(['do({})'.format(xi) for xi in sorted(x)]))))
+    display(Latex('$P({} | {})$'.format(','.join(sorted(y)), 
+                                        ','.join(['do({})'.format(xi) 
+                                                  for xi in sorted(x)]))))
     display_P( P) 
     draw_graph( G, U)
     v = set(G.nodes)
