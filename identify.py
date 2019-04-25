@@ -246,7 +246,7 @@ def display_P( P ):
     elif type(P) in sympy_classes:
         return display(P)
 def ID( y, x, P, G, U ):
-    display('P({} | {})'.format(','.join(sorted(y)), ','.join(['do({})'.format(xi) for xi in sorted(x)])))
+    display(Latex('$P({} | {})$'.format(','.join(sorted(y)), ','.join(['do({})'.format(xi) for xi in sorted(x)]))))
     display_P( P) 
     draw_graph( G, U)
     v = set(G.nodes)
