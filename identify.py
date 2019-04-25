@@ -18,7 +18,7 @@ from pgmpy.factors.base import factor_product
 from IPython.display import Latex
 import sys
 from matplotlib.patches import FancyArrowPatch, Circle 
-from sympy import Function, Symbol, Eq, simplify, init_printing
+from sympy import Function, Symbol, Eq, simplify, init_printing, latex
 from sympy.concrete.summations import Sum
 from sympy.core.core import all_classes as sympy_classes
 from sympy.concrete.products import Product
@@ -246,8 +246,8 @@ def display_P( P ):
     elif type(P) in sympy_classes:
         return display(P)
 def ID( y, x, P, G, U ):
-    display(Latex('$P({} | {})$'.format(','.join(sorted(y)), 
-                                        ','.join(['do({})'.format(xi) 
+    display(Latex('$P({} | {})$'.format(','.join([latex(Symbol(yi)) for yi in sorted(y)]), 
+                                        ','.join(['do({})'.format(latex(Symbol(xi)))
                                                   for xi in sorted(x)]))))
     display_P( P) 
     draw_graph( G, U)
