@@ -18,7 +18,11 @@ from pgmpy.factors.base import factor_product
 from IPython.display import Latex
 import sys
 from matplotlib.patches import FancyArrowPatch, Circle 
-
+from sympy import Function, Symbol, Eq, simplify, init_printing
+from sympy.concrete.summations import Sum
+from sympy.core.core import all_classes as sympy_classes
+from sympy.concrete.products import Product
+from sympy.functions import Abs
 
 class Fail(Exception):
     pass
@@ -137,10 +141,73 @@ def predecessors( pi, v ):
     return pi[:pi.index(v)]
 
 def marginalize( marginals, P ):
+    if type(P) is list:
+        return pgmpy_marginalize( marginals, P )
+    if type(P) in sympy_classes:
+        return sympy_marginalize( marginals, P )
+    
+def sympy_marginalize( marginals, P ):
+    for marginal in marginals:
+        V = symbol(marginal.upper())
+        if V in P.free_variables:
+            v = symbol(str(V).lower())
+            P = Sum(P, (V, v, Abs(V)) )
+        else:
+            print('Marginal {} is not a free variable in P: {}'.format(V, P.free_variables))
+    return P
+def pgmpy_marginalize( marginals, P ):
     return [Pv.marginalize( (set(Pv.scope()) & marginals) - set([Pv.variable]),
                           inplace=False)
            for Pv in P]
-def sum_product(  marginals, P ):
+
+def predecessors( pi, vi ):
+    return pi[:pi.index(vi)]
+def sympy_given( P, vi, pi ):
+    pred    = predecessors( pi, vi )
+    unbound = set([str(v) for v in P.free_variables]) - (set([vi]) | set(pred) )
+    numer   = marginalize( unbound, P )
+    denom   = marginalize( set(vi), numer )
+    return numer/denom
+
+def given( P, vi, pi ):
+    if type( P ) in sympy_classes:
+        return sympy_given( P, vi, pi )
+    elif type( P ) is str:
+        return pgmpy_given( P, vi, pi )
+    
+        
+def sum_product( marginals, P ):
+    if type(P) is list:
+        return pgmpy_sum_product( marginals, P )
+    elif type(P) in sympy_classes:
+        return sympy_sum_product( marginals, P )
+
+def sympy_product( P_list ):
+    P_product = P_list[0]
+    if len(P_list) > 1:
+        for P in P_list[1:]:
+            P_product *= P
+    return P_product
+
+def product( P_list ):
+    if all([type(P) is list for P in P_list]):
+        return pgmpy_product( P_list )
+    elif all([type( P ) in sympy_classes for P in P_list]):
+        return sympy_product( P_list )
+
+def pgmpy_product( P_list ):
+    P_product = P_list[0]
+    if len(P_list) > 1:
+        return factor_product( *P )
+    elif len(P_list) == 1:
+        return P_product
+    else:
+        raise NameError("P is empty!")
+def sympy_sum_product( marginals, P_list ):
+    return marginalize( marginals, product( P_list ) )
+    
+
+def pgmpy_sum_product(  marginals, P ):
     if len(P) > 1:
         return factor_product( *P ).\
                marginalize( marginals, inplace=False )
@@ -148,7 +215,13 @@ def sum_product(  marginals, P ):
         return P[0].marginalize( marginals, inplace=False )
     else:
         raise NameError("P is empty!")
-        
+  
+
+
+def joint_probability_distribution( vertices ):
+    P = Function('P')
+    return P(*[Symbol(V.upper()) for V in vertices])
+
 def cut_incoming( G, x ):
     G_x = G.copy()
     for edge in G.edges:
@@ -166,16 +239,21 @@ def find_superset( C_component, s ):
         if len(s - s_prime) == 0:
             return s_prime
     return []
-    
+
+def display_P( P ):
+    if type(P) is list:
+        return [display(to_frame(cpd)) for cpd in P]
+    elif type(P) in sympy_classes:
+        return display(P)
 def ID( y, x, P, G, U ):
     print('Y: {}\nX: {}'.format(y, x))
-    [display(to_frame(cpd)) for cpd in P]
+    display_P( P) 
     draw_graph( G, U)
     v = set(G.nodes)
     # line 1
     if len(x) == 0:
         print('Line 1')
-        return sum_product( v - y,  P )
+        return marginalize( v - y,  product( P ) )
     # line 2
     ancestors_y = G._get_ancestors_of( list(y) )
     if len(v - ancestors_y) > 0:
@@ -200,40 +278,42 @@ def ID( y, x, P, G, U ):
     print('C_x: {}'.format(C_components_of_U_x))
     if len(C_components_of_U_x) > 1:
         print('Line 4')
-        return sum_product( v - (x|y), 
-                            [ID(  C_component, 
+        return marginalize( v - (x|y), 
+                            product([ID(  C_component, 
                                   v - C_component,
                                   P,
                                   G,
                                   U )
-                            for C_component in C_components_of_U_x] )
+                            for C_component in C_components_of_U_x] ))
 
-    elif len(C_components_of_U_x) == 1:
-
+    
+    else:
         # line 5
-        S_x = C_components_of_U_x[0]
+        if len(C_components_of_U_x) == 1:
+            S_x = C_components_of_U_x[0]
+        else:
+            S_x = set()
         C_components_of_U = factorize_c_components( U )
-        if len(C_components_of_U) == 1 and C_components_of_U[0] == v:
+        if len(C_components_of_U) == 1 and C_components_of_U[0] == G.nodes:
             print('Line 5')
             raise Fail( 
                 "C_components_of_U {} and C_components_of_U_x {} form a hedge".format(
                     C_components_of_U, C_components_of_U_x ))
+
         # line 6
         pi = nx.topological_sort( G )
         if S_x  in C_components_of_U:
             print('Line 6')
-            return sum_product(S_x - y, 
-                               [Pv_given_pi 
-                                for Pv_given_pi in P
-                                if Pv_i_given_v_pi.variable in S_x] )
+            return marginalize(S_x - y, 
+                               product([given( P, vi, pi ) 
+                                         for vi in S_x] ))
         # line 7
         S_prime = find_superset( C_components_of_U, S_x )  
         if len(S_prime) > 0:
             print('Line 7')
             print('Found superset: {}'.format( S_prime))
-            P_prime = [Pv
-                       for Pv in P
-                       if Pv.variable in S_prime ]
+            P_prime = product([given( P, vi, pi )
+                               for vi in S_prime])
             return ID( y,
                        x & S_prime,
                        P_prime,
@@ -242,5 +322,3 @@ def ID( y, x, P, G, U ):
                      )
         else:
             raise Error("S' is empty")
-    else:
-        raise Error("ID preconditions failed. C_x is empty")
