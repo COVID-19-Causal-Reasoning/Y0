@@ -138,7 +138,7 @@ def remove_nodes_from( G , x ):
     return G_x
 
 def predecessors( pi, v ):
-    return pi[:pi.index(v)]
+    return list(pi)[:pi.index(v)]
 
 def marginalize( marginals, P ):
     if type(P) is list:
@@ -148,12 +148,12 @@ def marginalize( marginals, P ):
     
 def sympy_marginalize( marginals, P ):
     for marginal in marginals:
-        V = symbol(marginal.upper())
-        if V in P.free_variables:
-            v = symbol(str(V).lower())
+        V = Symbol(marginal.upper())
+        if V in P.free_symbols:
+            v = Symbol(str(V).lower())
             P = Sum(P, (V, v, Abs(V)) )
         else:
-            print('Marginal {} is not a free variable in P: {}'.format(V, P.free_variables))
+            print('Marginal {} is not a free variable in P: {}'.format(V, P.free_symbols))
     return P
 def pgmpy_marginalize( marginals, P ):
     return [Pv.marginalize( (set(Pv.scope()) & marginals) - set([Pv.variable]),
@@ -164,9 +164,9 @@ def predecessors( pi, vi ):
     return pi[:pi.index(vi)]
 def sympy_given( P, vi, pi ):
     pred    = predecessors( pi, vi )
-    unbound = set([str(v) for v in P.free_variables]) - (set([vi]) | set(pred) )
+    unbound = set([str(v) for v in P.free_symbols]) - (set([vi]) | set(pred) )
     numer   = marginalize( unbound, P )
-    denom   = marginalize( set(vi), numer )
+    denom   = marginalize( set([vi]), numer )
     return numer/denom
 
 def given( P, vi, pi ):
@@ -246,14 +246,14 @@ def display_P( P ):
     elif type(P) in sympy_classes:
         return display(P)
 def ID( y, x, P, G, U ):
-    print('Y: {}\nX: {}'.format(y, x))
+    display('P({} | {})'.format(','.join(sorted(y)), ','.join(['do({})'.format(xi) for xi in sorted(x)])))
     display_P( P) 
     draw_graph( G, U)
     v = set(G.nodes)
     # line 1
     if len(x) == 0:
         print('Line 1')
-        return marginalize( v - y,  product( P ) )
+        return marginalize( v - y, P )
     # line 2
     ancestors_y = G._get_ancestors_of( list(y) )
     if len(v - ancestors_y) > 0:
@@ -301,7 +301,7 @@ def ID( y, x, P, G, U ):
                     C_components_of_U, C_components_of_U_x ))
 
         # line 6
-        pi = nx.topological_sort( G )
+        pi = list(nx.topological_sort( G ))
         if S_x  in C_components_of_U:
             print('Line 6')
             return marginalize(S_x - y, 
