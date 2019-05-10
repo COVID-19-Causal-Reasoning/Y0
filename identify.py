@@ -37,19 +37,21 @@ def draw_graph( G, U ):
     nx.draw_networkx_nodes(G, pos,
                        nodelist=V,
                        node_color='r',
-                       node_size=100,
-                       alpha=0.8)
+                       node_size=500,
+                       alpha=0.5)
     nx.draw_networkx_edges(U, pos,
                        edgelist=list(U.edges),
                        linestyle='dashed',
+                       edge_color='green',
                        arrows=True,
                        arrowstyle='<|-|>',
                        connectionstyle="arc3,rad=0.3",
                        width=3, alpha=0.5)
     nx.draw_networkx_edges(G, pos,
                           edgelist=list(G.edges),
+                          edge_color='black',
                           style='solid',
-                          width=2, alpha=0.5)
+                          width=2 )
     nx.draw_networkx_labels(G, pos)
     plt.show()
 
@@ -215,9 +217,7 @@ def pgmpy_sum_product(  marginals, P ):
         return P[0].marginalize( marginals, inplace=False )
     else:
         raise NameError("P is empty!")
-  
-
-
+        
 def joint_probability_distribution( vertices ):
     P = Function('P')
     return P(*[Symbol(V.upper()) for V in vertices])
@@ -246,7 +246,7 @@ def display_P( P ):
     elif type(P) in sympy_classes:
         return display(P)
 def ID( y, x, P, G, U ):
-    display(Latex('$P({} | {})$'.format(','.join([latex(Symbol(yi)) for yi in sorted(y)]), 
+    display(Latex('Identify $P({} | {})$'.format(','.join([latex(Symbol(yi)) for yi in sorted(y)]), 
                                         ','.join(['do({})'.format(latex(Symbol(xi)))
                                                   for xi in sorted(x)]))))
     display_P( P) 
@@ -291,12 +291,15 @@ def ID( y, x, P, G, U ):
     
     else:
         # line 5
+        print('C-component of U_x: {}'.format(C_components_of_U_x))
         if len(C_components_of_U_x) == 1:
             S_x = C_components_of_U_x[0]
         else:
             S_x = set()
         C_components_of_U = factorize_c_components( U )
-        if len(C_components_of_U) == 1 and C_components_of_U[0] == G.nodes:
+        print('C-component of U: {}'.format(C_components_of_U))
+        print('Is C(U)={} == U={}: {}'.format( C_components_of_U[0], set(U.nodes), C_components_of_U[0] == set(U.nodes)))
+        if len(C_components_of_U) == 1 and C_components_of_U[0] == set(U.nodes):
             print('Line 5')
             raise Fail( 
                 "C_components_of_U {} and C_components_of_U_x {} form a hedge".format(
@@ -313,7 +316,7 @@ def ID( y, x, P, G, U ):
         S_prime = find_superset( C_components_of_U, S_x )  
         if len(S_prime) > 0:
             print('Line 7')
-            print('Found superset: {}'.format( S_prime))
+            print('Found superset: {}'.format( S_prime ))
             P_prime = product([given( P, vi, pi )
                                for vi in S_prime])
             return ID( y,
