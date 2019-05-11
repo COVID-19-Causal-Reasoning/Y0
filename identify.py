@@ -255,12 +255,16 @@ def ID( y, x, P, G, U ):
     # line 1
     if len(x) == 0:
         print('Line 1')
+        display(Latex('No $do(X)$. Return ${}$'.format(  latex(marginalize( v - y, P)))))
         return marginalize( v - y, P )
     # line 2
-    ancestors_y = G._get_ancestors_of( list(y) )
+    ancestors_y = set(G._get_ancestors_of( list(y) ))
+    
     if len(v - ancestors_y) > 0:
+        
         print('Line 2')
-        ID( y, 
+        print('Removing non-ancestors of Y={}:  {}'.format( y,  v - ancestors_y ))
+        return ID( y, 
             x & ancestors_y,
            marginalize( v - ancestors_y, P ),
            G.subgraph( ancestors_y ),
@@ -272,7 +276,8 @@ def ID( y, x, P, G, U ):
     w = (v - x) - G_bar_x._get_ancestors_of( list(y) )
     if len( w ) > 0:
         print('Line 3')
-        ID( y, x | w, P, G, U )
+        
+        return ID( y, x | w, P, G, U )
         
     # line 4
     U_x = remove_nodes_from( U, x )
@@ -280,13 +285,19 @@ def ID( y, x, P, G, U ):
     print('C_x: {}'.format(C_components_of_U_x))
     if len(C_components_of_U_x) > 1:
         print('Line 4')
+        P_list = []
+        for C_component in C_components_of_U_x:
+            Ps = ID( C_component, v - C_component, P, G, U)
+            display(Latex('\tC-component Identify $P({} | {}) = {}$'.format(
+                              ','.join([latex(Symbol(yi)) 
+                                  for yi in sorted(C_component)]), 
+                              ','.join(['do({})'.format(latex(Symbol(xi)))
+                                     for xi in sorted(v - C_component)]),
+                               latex(Ps))))
+            
+            P_list.append( Ps )
         return marginalize( v - (x|y), 
-                            product([ID(  C_component, 
-                                  v - C_component,
-                                  P,
-                                  G,
-                                  U )
-                            for C_component in C_components_of_U_x] ))
+                            product(P_list ))
 
     
     else:
@@ -298,11 +309,11 @@ def ID( y, x, P, G, U ):
             S_x = set()
         C_components_of_U = factorize_c_components( U )
         print('C-component of U: {}'.format(C_components_of_U))
-        print('Is C(U)={} == U={}: {}'.format( C_components_of_U[0], set(U.nodes), C_components_of_U[0] == set(U.nodes)))
+        print('Is C(U)={} equal to U={}: {}'.format( C_components_of_U[0], set(U.nodes), C_components_of_U[0] == set(U.nodes)))
         if len(C_components_of_U) == 1 and C_components_of_U[0] == set(U.nodes):
             print('Line 5')
             raise Fail( 
-                "C_components_of_U {} and C_components_of_U_x {} form a hedge".format(
+                "Identification Failure: C-components of U {} and C-components of (U-x) {} form a hedge".format(
                     C_components_of_U, C_components_of_U_x ))
 
         # line 6
