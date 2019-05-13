@@ -153,7 +153,7 @@ def sympy_marginalize( marginals, P ):
         V = Symbol(marginal.upper())
         if V in P.free_symbols:
             v = Symbol(str(V).lower())
-            P = Sum(P, (V, v, Abs(V)) )
+            P = Sum(P, (v, 1, Abs(V)) )
         else:
             print('Marginal {} is not a free variable in P: {}'.format(V, P.free_symbols))
     return P
@@ -281,10 +281,14 @@ def ID( y, x, P, G, U ):
         
     # line 4
     U_x = remove_nodes_from( U, x )
+    G_x = remove_nodes_from( G, x )
+    
     C_components_of_U_x = factorize_c_components( U_x )
     print('C_x: {}'.format(C_components_of_U_x))
     if len(C_components_of_U_x) > 1:
         print('Line 4')
+        display('G - X={}:'.format(x))
+        draw_graph( G_x, U_x)
         P_list = []
         for C_component in C_components_of_U_x:
             Ps = ID( C_component, v - C_component, P, G, U)
