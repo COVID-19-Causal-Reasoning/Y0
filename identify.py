@@ -169,7 +169,7 @@ def sympy_given( P, vi, pi ):
     pred    = predecessors( pi, vi )
     unbound = set([str(v) for v in P.free_symbols]) - (set([vi]) | set(pred) )
     numer   = marginalize( unbound, P )
-    denom   = marginalize( pred, numer )
+    denom   = marginalize( set([vi]), numer )
     return numer/denom
 
 def given( P, vi, pi ):
