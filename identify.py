@@ -4,17 +4,12 @@ from matplotlib import pylab as plt
 import seaborn as sns
 import inspect
 from collections import OrderedDict
-import pgmpy as pgm
-from pgmpy.models import BayesianModel
-from pgmpy.factors.continuous import ContinuousFactor
-from pgmpy.factors.discrete import TabularCPD, JointProbabilityDistribution
 from pgmpy.base import DAG
 from pgmpy.extern.six.moves import reduce
 import numpy as np
 import pandas as pd
 from numpy.random import randn
 from itertools import product
-from pgmpy.factors.base import factor_product
 from IPython.display import Latex
 import sys
 from matplotlib.patches import FancyArrowPatch, Circle 
@@ -24,6 +19,8 @@ from sympy.core.core import all_classes as sympy_classes
 from sympy.concrete.products import Product
 from sympy.functions import Abs
 from IPython.display import display, Latex
+
+
 class Fail(Exception):
     pass
 
@@ -114,7 +111,7 @@ def factorize_c_components( U ):
             current_node = nodes[0]
             current_component = connected_component( U.edges ,
                                                      current_node )
-            print('found connected component {} of node {}'.format(current_component, current_node))
+            #print('found connected component {} of node {}'.format(current_component, current_node))
             
             return recur( list(set(nodes[1:]) - current_component ),
                           components + [current_component] ) 
@@ -147,8 +144,12 @@ def marginalize( marginals, P ):
         return pgmpy_marginalize( marginals, P )
     if type(P) in sympy_classes:
         return sympy_marginalize( marginals, P )
-    
+
 def sympy_marginalize( marginals, P ):
+    V = P.free_symbols - set([Symbol(m.upper()) for m in marginals])
+    return joint_probability_distribution( V )
+
+def old_sympy_marginalize( marginals, P ):
     for marginal in marginals:
         V = Symbol(marginal.upper())
         if V in P.free_symbols:
@@ -168,7 +169,7 @@ def sympy_given( P, vi, pi ):
     pred    = predecessors( pi, vi )
     unbound = set([str(v) for v in P.free_symbols]) - (set([vi]) | set(pred) )
     numer   = marginalize( unbound, P )
-    denom   = marginalize( set([vi]), numer )
+    denom   = marginalize( pred, numer )
     return numer/denom
 
 def given( P, vi, pi ):
@@ -206,7 +207,7 @@ def pgmpy_product( P_list ):
     else:
         raise NameError("P is empty!")
 def sympy_sum_product( marginals, P_list ):
-    return marginalize( marginals, product( P_list ) )
+    return old_sympy_marginalize( marginals, product( P_list ) )
     
 
 def pgmpy_sum_product(  marginals, P ):
@@ -220,7 +221,7 @@ def pgmpy_sum_product(  marginals, P ):
         
 def joint_probability_distribution( vertices ):
     P = Function('P')
-    return P(*[Symbol(V.upper()) for V in vertices])
+    return P(*[Symbol(str(V).upper()) for V in vertices])
 
 def cut_incoming( G, x ):
     G_x = G.copy()
@@ -245,54 +246,62 @@ def display_P( P ):
         return [display(to_frame(cpd)) for cpd in P]
     elif type(P) in sympy_classes:
         return display(P)
-def ID( y, x, P, G, U ):
-    display(Latex('Identify $P({} | {})$'.format(','.join([latex(Symbol(yi)) for yi in sorted(y)]), 
+def ID( y, x, P, G, U, debug=False, recurse_level = 0 ):
+    if debug:
+        display(Latex('{}Identify $P({} | {})$'.format('-'*recurse_level,','.join([latex(Symbol(yi)) for yi in sorted(y)]), 
                                         ','.join(['do({})'.format(latex(Symbol(xi)))
                                                   for xi in sorted(x)]))))
-    display_P( P) 
-    draw_graph( G, U)
+        display_P( P) 
+        draw_graph( G, U)
     v = set(G.nodes)
     # line 1
     if len(x) == 0:
-        print('Line 1')
-        display(Latex('No $do(X)$. Return ${}$'.format(  latex(marginalize( v - y, P)))))
+        if debug:
+            print('{}Line 1'.format('-'*recurse_level))
+            display(Latex('{}No $do(X)$. Return ${}$'.format('-'*recurse_level,  latex(marginalize( v - y, P)))))
         return marginalize( v - y, P )
     # line 2
     ancestors_y = set(G._get_ancestors_of( list(y) ))
     
     if len(v - ancestors_y) > 0:
-        
-        print('Line 2')
-        print('Removing non-ancestors of Y={}:  {}'.format( y,  v - ancestors_y ))
+        if debug:
+            print('{}Line 2'.format('-'*recurse_level))
+            print('{}Removing non-ancestors of Y={}:  {}'.format('-'*recurse_level, y,  v - ancestors_y ))
         return ID( y, 
-            x & ancestors_y,
-           marginalize( v - ancestors_y, P ),
-           G.subgraph( ancestors_y ),
-           U.subgraph( ancestors_y )
+                   x & ancestors_y,
+                   marginalize( v - ancestors_y, P ),
+                   G.subgraph( ancestors_y ),
+                   U.subgraph( ancestors_y ),
+                   debug = debug,
+                   recurse_level = recurse_level + 1
           )
     
     # line 3
     G_bar_x = cut_incoming( G, x )
     w = (v - x) - G_bar_x._get_ancestors_of( list(y) )
     if len( w ) > 0:
-        print('Line 3')
-        
-        return ID( y, x | w, P, G, U )
+        if debug:
+            print('{}Line 3'.format('-'*recurse_level))
+        return ID( y, x | w, P, G, U, debug=debug, recurse_level = recurse_level + 1 )
         
     # line 4
     U_x = remove_nodes_from( U, x )
     G_x = remove_nodes_from( G, x )
     
     C_components_of_U_x = factorize_c_components( U_x )
-    print('C_x: {}'.format(C_components_of_U_x))
+    if debug:
+        print('{}C_x: {}'.format('-'*recurse_level,C_components_of_U_x))
     if len(C_components_of_U_x) > 1:
-        print('Line 4')
-        display('G - X={}:'.format(x))
+        if debug:
+            print('{}Line 4'.format('-'*recurse_level))
+            display('{}G - X={}:'.format('-'*recurse_level,x))
         draw_graph( G_x, U_x)
         P_list = []
         for C_component in C_components_of_U_x:
-            Ps = ID( C_component, v - C_component, P, G, U)
-            display(Latex('\tC-component Identify $P({} | {}) = {}$'.format(
+            Ps = ID( C_component, v - C_component, P, G, U, debug=debug, recurse_level=recurse_level + 1 )
+            if debug:
+                display(Latex('{}\tC-component Identify $P({} | {}) = {}$'.format(
+                              '-'*recurse_level,
                               ','.join([latex(Symbol(yi)) 
                                   for yi in sorted(C_component)]), 
                               ','.join(['do({})'.format(latex(Symbol(xi)))
@@ -300,45 +309,54 @@ def ID( y, x, P, G, U ):
                                latex(Ps))))
             
             P_list.append( Ps )
+        if debug:
+            display('{}Returning back to Line 4'.format('-'*recurse_level))
         return marginalize( v - (x|y), 
                             product(P_list ))
 
     
     else:
         # line 5
-        print('C-component of U_x: {}'.format(C_components_of_U_x))
+        if debug:
+            print('{}C-component of U_x: {}'.format('-'*recurse_level, C_components_of_U_x))
         if len(C_components_of_U_x) == 1:
             S_x = C_components_of_U_x[0]
         else:
             S_x = set()
         C_components_of_U = factorize_c_components( U )
-        print('C-component of U: {}'.format(C_components_of_U))
-        print('Is C(U)={} equal to U={}: {}'.format( C_components_of_U[0], set(U.nodes), C_components_of_U[0] == set(U.nodes)))
+        if debug:
+            print('{}C-component of U: {}'.format('-'*recurse_level, C_components_of_U))
+            print('{}Is C(U)={} equal to U={}: {}'.format('-'*recurse_level,  C_components_of_U[0], set(U.nodes), C_components_of_U[0] == set(U.nodes)))
         if len(C_components_of_U) == 1 and C_components_of_U[0] == set(U.nodes):
-            print('Line 5')
+            if debug:
+                print('{}Line 5'.format('-'*recurse_level))
             raise Fail( 
-                "Identification Failure: C-components of U {} and C-components of (U-x) {} form a hedge".format(
-                    C_components_of_U, C_components_of_U_x ))
+                "{}Identification Failure: C-components of U {} and C-components of (U-x) {} form a hedge".format(
+                    '-'*recurse_level, C_components_of_U, C_components_of_U & S_x ))
 
         # line 6
         pi = list(nx.topological_sort( G ))
         if S_x  in C_components_of_U:
-            print('Line 6')
+            if debug:
+                print('{}Line 6'.format('-'*recurse_level))
             return marginalize(S_x - y, 
-                               product([given( P, vi, pi ) 
+                               product([given( P, vi, pi )  # P( vi | pi )
                                          for vi in S_x] ))
         # line 7
         S_prime = find_superset( C_components_of_U, S_x )  
         if len(S_prime) > 0:
-            print('Line 7')
-            print('Found superset: {}'.format( S_prime ))
+            if debug:
+                print('{}Line 7'.format('-'*recurse_level))
+                print('{}Found superset: {}'.format( '-'*recurse_level, S_prime ))
             P_prime = product([given( P, vi, pi )
                                for vi in S_prime])
             return ID( y,
                        x & S_prime,
                        P_prime,
                        G.subgraph( S_prime ), 
-                       U.subgraph( S_prime )
+                       U.subgraph( S_prime ), 
+                       debug = debug,
+                       recurse_level = recurse_level + 1
                      )
         else:
-            raise Error("S' is empty")
+            raise Error("{}S' is empty".format('-'*recurse_level))
