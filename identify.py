@@ -1,4 +1,3 @@
-
 import networkx as nx
 from matplotlib import pylab as plt
 import seaborn as sns
@@ -52,47 +51,6 @@ def draw_graph( G, U ):
     nx.draw_networkx_labels(G, pos)
     plt.show()
 
-def to_frame(self, tablefmt="fancy_grid", print_state_names=True):
-        headers_list = []
-        # build column headers
-
-        evidence = self.variables[1:]
-        evidence_card = self.cardinality[1:]
-        if evidence:
-            col_indexes = np.array(list(product(*[range(i) for i in evidence_card])))
-            if self.state_names and print_state_names:
-                for i in range(len(evidence_card)):
-                    column_header = [str(evidence[i])] + ['{var}({state})'.format
-                                                     (var=evidence[i],
-                                                      state=self.state_names[evidence[i]][d])
-                                                     for d in col_indexes.T[i]]
-                    headers_list.append(column_header)
-            else:
-                for i in range(len(evidence_card)):
-                    column_header = [str(evidence[i])] + ['{s}_{d}'.format(s=evidence[i], d=d) 
-                                                          for d in col_indexes.T[i]]
-                    headers_list.append(column_header)
-
-        # Build row headers
-        if self.state_names and print_state_names:
-            variable_array = [['{var}({state})'.format
-                               (var=self.variable, state=self.state_names[self.variable][i])
-                               for i in range(self.variable_card)]]
-        else:
-            variable_array = [['{s}_{d}'.format(s=self.variable, d=i) for i in range(self.variable_card)]]
-        # Stack with data
-        labeled_rows = np.hstack((np.array(variable_array).T, self.get_values())).tolist()
-        # No support for multi-headers in tabulate
-        if len(headers_list) > 0:
-            column_idx = pd.MultiIndex.from_arrays([header[1:] for header in headers_list],
-                                              names= [header[0] for header in headers_list])
-            row_idx_name = 'P({}|{})'.format(self.variable, ','.join(column_idx.names))
-        else:
-            column_idx = [self.variable]
-            row_idx_name = 'P({})'.format(self.variable)
-        df = pd.DataFrame(self.get_values(), columns=column_idx, index=variable_array)
-        df.index.name = row_idx_name
-        return df
 
 def adjacent_nodes( pairs, node ):
     "Returns the nodes adjacent to node (via the bidirected edges in pairs)."
@@ -139,13 +97,8 @@ def remove_nodes_from( G , x ):
 def predecessors( pi, v ):
     return list(pi)[:pi.index(v)]
 
-def marginalize( marginals, P ):
-    if type(P) is list:
-        return pgmpy_marginalize( marginals, P )
-    if type(P) in sympy_classes:
-        return sympy_marginalize( marginals, P )
 
-def sympy_marginalize( marginals, P ):
+def marginalize( marginals, P ):
     V = P.free_symbols - set([Symbol(m.upper()) for m in marginals])
     return joint_probability_distribution( V )
 
@@ -158,67 +111,30 @@ def old_sympy_marginalize( marginals, P ):
         else:
             print('Marginal {} is not a free variable in P: {}'.format(V, P.free_symbols))
     return P
-def pgmpy_marginalize( marginals, P ):
-    return [Pv.marginalize( (set(Pv.scope()) & marginals) - set([Pv.variable]),
-                          inplace=False)
-           for Pv in P]
 
 def predecessors( pi, vi ):
     return pi[:pi.index(vi)]
-def sympy_given( P, vi, pi ):
+def given( P, vi, pi ):
     pred    = predecessors( pi, vi )
     unbound = set([str(v) for v in P.free_symbols]) - (set([vi]) | set(pred) )
     numer   = marginalize( unbound, P )
     denom   = marginalize( set([vi]), numer )
     return numer/denom
 
-def given( P, vi, pi ):
-    if type( P ) in sympy_classes:
-        return sympy_given( P, vi, pi )
-    elif type( P ) is str:
-        return pgmpy_given( P, vi, pi )
-    
         
-def sum_product( marginals, P ):
-    if type(P) is list:
-        return pgmpy_sum_product( marginals, P )
-    elif type(P) in sympy_classes:
-        return sympy_sum_product( marginals, P )
 
-def sympy_product( P_list ):
+def product( P_list ):
     P_product = P_list[0]
     if len(P_list) > 1:
         for P in P_list[1:]:
             P_product *= P
     return P_product
 
-def product( P_list ):
-    if all([type(P) is list for P in P_list]):
-        return pgmpy_product( P_list )
-    elif all([type( P ) in sympy_classes for P in P_list]):
-        return sympy_product( P_list )
 
-def pgmpy_product( P_list ):
-    P_product = P_list[0]
-    if len(P_list) > 1:
-        return factor_product( *P )
-    elif len(P_list) == 1:
-        return P_product
-    else:
-        raise NameError("P is empty!")
-def sympy_sum_product( marginals, P_list ):
+def sum_product( marginals, P_list ):
     return old_sympy_marginalize( marginals, product( P_list ) )
     
 
-def pgmpy_sum_product(  marginals, P ):
-    if len(P) > 1:
-        return factor_product( *P ).\
-               marginalize( marginals, inplace=False )
-    elif len(P) == 1:
-        return P[0].marginalize( marginals, inplace=False )
-    else:
-        raise NameError("P is empty!")
-        
 def joint_probability_distribution( vertices ):
     P = Function('P')
     return P(*[Symbol(str(V).upper()) for V in vertices])
