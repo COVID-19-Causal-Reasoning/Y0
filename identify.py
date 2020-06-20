@@ -236,7 +236,7 @@ def ID( y, x, P, G, U, debug=False, recurse_level = 0 ):
         if debug:
             print('{}C-component of U_x: {}'.format('-'*recurse_level, C_components_of_U_x))
         if len(C_components_of_U_x) == 1:
-            S_x = C_components_of_U_x[0]
+            S_x = C_components_of_U_x
         else:
             S_x = set()
         C_components_of_U = factorize_c_components( U )
@@ -248,7 +248,7 @@ def ID( y, x, P, G, U, debug=False, recurse_level = 0 ):
                 print('{}Line 5'.format('-'*recurse_level))
             raise Fail( 
                 "{}Identification Failure: C-components of U {} and C-components of (U-x) {} form a hedge".format(
-                    '-'*recurse_level, C_components_of_U, C_components_of_U & S_x ))
+                    '-'*recurse_level, C_components_of_U), C_components_of_U & S_x )
 
         # line 6
         pi = list(nx.topological_sort( G ))
